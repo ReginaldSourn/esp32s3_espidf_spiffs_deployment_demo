@@ -1,0 +1,101 @@
+# ESP-IDF .gitignore file
+# Reference: https://github.com/espressif/esp-idf/blob/master/.gitignore
+
+# Build directory
+build/
+
+# ESP-IDF config files
+sdkconfig
+sdkconfig.old
+
+# Binary files
+*.bin
+*.elf
+*.map
+
+# Generated binary files
+bootloader.bin
+partition-table.bin
+*.app.bin
+
+# Project specific
+components/*/build/
+managed_components/
+
+# IDF temporary build files
+.cproject
+.project
+.settings/
+*.o
+*.d
+*.pyc
+__pycache__/
+
+# Eclipse IDE specific
+.metadata/
+RemoteSystemsTempFiles/
+*.launch
+
+# Visual Studio Code specific
+.vscode/
+.devcontainer/
+
+# CMake temporary files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Clang/LLVM
+.clangd/
+.cache/
+
+# JetBrains IDE specific
+.idea/
+*.iml
+cmake-build-*/
+
+# Testing artifacts
+TEST_LOGS/
+test_build/
+
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Generated documentation
+docs/_build/
+docs/doxygen-warning-log.txt
+docs/sphinx-warning-log.txt
+docs/sphinx-warning-log-sanitized.txt
+
+# Coverage reports
+coverage.info
+coverage_report/
+
+# Temporary files
+*.swp
+*~
+.DS_Store
+
+# NVS partition files
+*.csv.binary
+
+# Unit test app files
+tools/unit-test-app/sdkconfig
+tools/unit-test-app/sdkconfig.old
+tools/unit-test-app/build
+tools/unit-test-app/builds
+tools/unit-test-app/output
+
+# Dependencies lock files (can be included if you want to lock dependencies)
+# dependencies.lock
+
+# ccache files
+.ccache/
+
+# Log files
+*.log
+
+# gdb files
+.gdb_history

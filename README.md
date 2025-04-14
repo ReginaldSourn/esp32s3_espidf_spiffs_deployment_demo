@@ -20,10 +20,10 @@ This project showcases a modern development workflow for ESP32-S3 firmware devel
 ├── Dockerfile              # Docker configuration for ESP32-S3 development
 ├── .github/workflows/      # CI/CD pipeline configurations
 ├── main/                   # Application source code
-│   ├── spiffs_main.c    # SPIFFS demo implementation
+│   ├── spiffs_main.c       # SPIFFS demo implementation main file
 │   ├── include/            # Header files
 │   └── CMakeLists.txt      # Main component build configuration
-├── components/             # Custom components
+├── pytest_spiffs.py        # Python for testing SPIFFS 
 ├── spiffs_data/            # Files to be included in SPIFFS partition
 ├── partitions.csv          # Custom partition table with SPIFFS partition
 ├── CMakeLists.txt          # Project build configuration

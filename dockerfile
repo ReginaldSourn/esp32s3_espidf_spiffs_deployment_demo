@@ -1,10 +1,10 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Prevent interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set ESP-IDF version - using v5.1.1 which has good ESP32-S3 support
-ENV ESP_IDF_VERSION=v5.1.1
+ENV ESP_IDF_VERSION=v5.3.1
 ENV ESP_IDF_TOOLS_PATH=/opt/esp/tools
 ENV IDF_PATH=/opt/esp/esp-idf
 ENV IDF_TOOLS_PATH=${ESP_IDF_TOOLS_PATH}

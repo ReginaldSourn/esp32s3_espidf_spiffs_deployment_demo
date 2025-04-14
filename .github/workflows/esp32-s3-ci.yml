@@ -1,0 +1,145 @@
+name: ESP32-S3 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      
+    - name: Build Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: false
+        load: true
+        tags: esp32s3-ci:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+      
+    - name: Install dependencies in container
+      uses: addnab/docker-run-action@v3
+      with:
+        image: esp32s3-ci:latest
+        options: -v ${{ github.workspace }}:/workspace
+        run: |
+          apt-get update
+          apt-get install -y python3-pip
+          pip install pytest pytest-embedded pytest-embedded-serial-esp
+      
+    - name: Set ESP32-S3 as target
+      uses: addnab/docker-run-action@v3
+      with:
+        image: esp32s3-ci:latest
+        options: -v ${{ github.workspace }}:/workspace
+        run: |
+          echo "CONFIG_IDF_TARGET=\"esp32s3\"" >> sdkconfig.defaults
+          echo "CONFIG_IDF_TARGET_ESP32S3=y" >> sdkconfig.defaults
+    
+    - name: ESP-IDF build
+      uses: addnab/docker-run-action@v3
+      with:
+        image: esp32s3-ci:latest
+        options: -v ${{ github.workspace }}:/workspace
+        run: |
+          source $IDF_PATH/export.sh
+          export IDF_TARGET=esp32s3
+          idf.py set-target esp32s3
+          idf.py build
+    
+    - name: Run unit tests
+      uses: addnab/docker-run-action@v3
+      with:
+        image: esp32s3-ci:latest
+        options: -v ${{ github.workspace }}:/workspace
+        run: |
+          source $IDF_PATH/export.sh
+          export IDF_TARGET=esp32s3
+          cd test
+          pytest
+    
+    - name: Upload firmware as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: firmware
+        path: |
+          build/spiffs_example.bin
+          build/spiffs.bin
+          build/bootloader/bootloader.bin
+          build/partition_table/partition-table.bin
+        retention-days: 7
+    
+    - name: Generate firmware package
+      uses: addnab/docker-run-action@v3
+      with:
+        image: esp32s3-ci:latest
+        options: -v ${{ github.workspace }}:/workspace
+        run: |
+          source $IDF_PATH/export.sh
+          export IDF_TARGET=esp32s3
+          mkdir -p firmware-package
+          cp build/spiffs_example.bin firmware-package/
+          cp build/spiffs.bin firmware-package/
+          cp build/bootloader/bootloader.bin firmware-package/
+          cp build/partition_table/partition-table.bin firmware-package/
+          echo "Firmware built on $(date)" > firmware-package/version.txt
+          echo "Commit: ${{ github.sha }}" >> firmware-package/version.txt
+          apt-get update && apt-get install -y zip
+          cd firmware-package
+          zip -r ../esp32s3-firmware.zip *
+    
+    - name: Upload complete firmware package
+      uses: actions/upload-artifact@v3
+      with:
+        name: esp32s3-firmware-package
+        path: esp32s3-firmware.zip
+        retention-days: 7
+
+  # Optional: Deploy to devices or release
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')  # Deploy from main branch or tags
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download firmware package
+      uses: actions/download-artifact@v3
+      with:
+        name: esp32s3-firmware-package
+    
+    - name: Create GitHub Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: esp32s3-firmware.zip
+        body: |
+          ESP32-S3 Firmware with SPIFFS Demo (ESP-IDF v5.3.1)
+          
+          This release includes:
+          - Main application binary
+          - SPIFFS image with demo files
+          - Bootloader and partition table
+          
+          Built with ESP-IDF v5.3.1 for ESP32-S3.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    # Example of OTA deployment to test devices (commented out)
+    # - name: Deploy OTA to test devices
+    #   if: github.ref == 'refs/heads/main'
+    #   run: |
+    #     curl -X POST "${{ secrets.OTA_ENDPOINT }}" \
+    #       -F "firmware=@esp32s3-firmware.zip" \
+    #       -H "Authorization: Bearer ${{ secrets.OTA_TOKEN }}"

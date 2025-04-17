@@ -102,7 +102,7 @@ jobs:
       
       - name: Create GitHub Release
         id: create_release
-        uses: phuonghuynh/action-ghrelease@v1.1.0
+        uses: softprops/action-gh-release@v2
         with:
           files: esp32s3-spiffs.zip
           name: Release ${{ github.ref_name }}

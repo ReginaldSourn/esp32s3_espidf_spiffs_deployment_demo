@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     dfu-util \
     libusb-1.0-0 \
+    nano \
+    vim \
     usbutils \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

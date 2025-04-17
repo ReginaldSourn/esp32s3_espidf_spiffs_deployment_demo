@@ -185,6 +185,15 @@ If build fails:
 1. Update ESP-IDF: `cd $IDF_PATH && git pull && ./install.sh esp32s3`
 2. Clean build: `idf.py fullclean && idf.py build`
 
+## Docker Build
+### Build the Docker image
+``` docker build -t esp32s3-dev . ```
+
+### Run the container with your project mounted
+``` docker run -it --rm  -v {path}/esp32s3_espidf_spiffs_deployment_demo:/workspace  esp32s3-dev ```
+
+
+
 ## SPIFFS Demo Implementation
 
 The SPIFFS demo showcases how to:

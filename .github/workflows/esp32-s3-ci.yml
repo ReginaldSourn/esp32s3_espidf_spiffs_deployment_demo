@@ -64,9 +64,9 @@ jobs:
         git clone --recursive https://github.com/espressif/esp-idf.git -b v5.3.1
         cd esp-idf
         
-        # First, check what files are available (for debugging)
-        echo "Checking ESP-IDF directory structure:"
-        ls -la ./
+        # Check if requirements.txt exists and show its path
+        echo "Checking for requirements.txt:"
+        find . -name "requirements.txt" -type f
         
         # Set up environment variables
         export IDF_PATH=/opt/esp/esp-idf
@@ -75,12 +75,23 @@ jobs:
         # Create tools directory with correct permissions
         mkdir -p $IDF_TOOLS_PATH
         chmod -R 777 $IDF_TOOLS_PATH
+        chmod -R 777 $IDF_PATH
         
-        # Let's modify the ESP-IDF installation script to skip virtual environment creation
-        # First, install Python dependencies directly
-        pip3 install --break-system-packages -r $IDF_PATH/requirements.txt
+        # Install Python dependencies directly using requirements.txt from correct location
+        if [ -f "$IDF_PATH/requirements.txt" ]; then
+          pip3 install --break-system-packages -r $IDF_PATH/requirements.txt
+        else
+          # Try alternative locations
+          REQ_FILE=$(find $IDF_PATH -name "requirements.txt" -type f | head -n 1)
+          if [ -n "$REQ_FILE" ]; then
+            pip3 install --break-system-packages -r $REQ_FILE
+          else
+            # Install core packages directly
+            pip3 install --break-system-packages setuptools wheel cryptography pyparsing pyserial
+          fi
+        fi
         
-        # Then use idf_tools.py directly to install the toolchain
+        # Install the toolchain
         python3 $IDF_PATH/tools/idf_tools.py install --targets=esp32s3
         
         # Create a script that will set up the environment correctly

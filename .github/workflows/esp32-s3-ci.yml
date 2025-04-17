@@ -1,4 +1,4 @@
-name: ESP32-S3 CI/CD Pipeline
+name: ESP32-S3 CI/CD Pipeline with ESP-IDF Action
 
 on:
   push:
@@ -15,86 +15,24 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: /bin/bash  # Explicitly use bash for all run commands
-    container:
-      image: ubuntu:24.04
-      options: --privileged
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        apt-get update
-        DEBIAN_FRONTEND=noninteractive apt-get install -y \
-          git \
-          wget \
-          flex \
-          bison \
-          gperf \
-          python3 \
-          python3-pip \
-          python3-venv \
-          python3-setuptools \
-          cmake \
-          ninja-build \
-          ccache \
-          libffi-dev \
-          libssl-dev \
-          dfu-util \
-          libusb-1.0-0 \
-          usbutils \
-          curl \
-          jq
-
-    - name: Set up ESP-IDF
-      run: |
-        mkdir -p /opt/esp
-        cd /opt/esp
-        git clone --recursive https://github.com/espressif/esp-idf.git -b v5.3.1
-        cd esp-idf
-        ./install.sh esp32s3
-
-    - name: Set environment variables
-      run: |
-        echo "IDF_PATH=/opt/esp/esp-idf" >> $GITHUB_ENV
-        echo "IDF_TARGET=esp32s3" >> $GITHUB_ENV
-        echo "ESP_IDF_TOOLS_PATH=/opt/esp/tools" >> $GITHUB_ENV
-        echo "IDF_TOOLS_PATH=/opt/esp/tools" >> $GITHUB_ENV
-        echo "PATH=/opt/esp/tools/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:/opt/esp/esp-idf/tools:$PATH" >> $GITHUB_ENV
-
+      
+    - name: Setup ESP-IDF
+      uses: espressif/esp-idf-ci-action@v1
+      with:
+        esp_idf_version: v5.3.1
+        target: esp32s3
+        path: ''  # Path to project directory, empty means root directory
+      
     - name: Build project
-      run: |
-        . /opt/esp/esp-idf/export.sh
-        cd $GITHUB_WORKSPACE
-        
-        # Build the project
-        idf.py build
-
-    - name: Run static code analysis
-      run: |
-        . /opt/esp/esp-idf/export.sh
-        # Example using cppcheck (you would need to install it first)
-        # apt-get update && apt-get install -y cppcheck
-        # cppcheck --enable=all --suppress=missingIncludeSystem main/
-
-    - name: Run unit tests
-      run: |
-        . /opt/esp/esp-idf/export.sh
-        # Run tests if your project has them
-        # idf.py -p PORT test
-        
-        # Or use specific test commands if needed
-        # For example:
-        # python -m pytest test/
-
+      run: idf.py build
+      
     - name: Create firmware package
       if: success()
       run: |
-        . /opt/esp/esp-idf/export.sh
         mkdir -p firmware-package
         cp build/bootloader/bootloader.bin firmware-package/
         cp build/*.bin firmware-package/
@@ -107,7 +45,7 @@ jobs:
         echo "Commit: ${{ github.sha }}" >> firmware-package/version.txt
         
         # Create a zip archive
-        apt-get update && apt-get install -y zip
+        sudo apt-get update && sudo apt-get install -y zip
         zip -r esp32s3-spiffs.zip firmware-package/
 
     - name: Upload build artifacts

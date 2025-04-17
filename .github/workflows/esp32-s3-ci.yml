@@ -60,7 +60,14 @@ jobs:
         cd /opt/esp
         git clone --recursive https://github.com/espressif/esp-idf.git -b v5.3.1
         cd esp-idf
-        ./install.sh esp32s3
+        
+        # Set up IDF_PATH environment variable for use in this step
+        export IDF_PATH=/opt/esp/esp-idf
+        
+        # Run the full installation script with all required tools
+        ./install.sh all
+        
+        # This will install all the ESP-IDF tools including the required toolchains
 
     - name: Set environment variables
       run: |
@@ -68,12 +75,17 @@ jobs:
         echo "IDF_TARGET=esp32s3" >> $GITHUB_ENV
         echo "ESP_IDF_TOOLS_PATH=/opt/esp/tools" >> $GITHUB_ENV
         echo "IDF_TOOLS_PATH=/opt/esp/tools" >> $GITHUB_ENV
-        echo "PATH=/opt/esp/tools/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:/opt/esp/esp-idf/tools:$PATH" >> $GITHUB_ENV
+        
+        # We don't need to manually add toolchain paths as they'll be handled by the export.sh script
 
     - name: Build project
       run: |
+        # Source the export script to set up the environment properly
         . /opt/esp/esp-idf/export.sh
         cd $GITHUB_WORKSPACE
+        
+        # Set the target explicitly
+        idf.py set-target esp32s3
         
         # Build the project
         idf.py build
@@ -112,13 +124,13 @@ jobs:
         
         # Create a zip archive
         apt-get update && apt-get install -y zip
-        zip -r esp32s3-spiffs.zip firmware-package/
+        zip -r esp32s3-firmware.zip firmware-package/
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: esp32s3-spiffs
-        path: esp32s3-spiffs.zip
+        name: esp32s3-firmware
+        path: esp32s3-firmware.zip
         if-no-files-found: error
 
   deploy-development:
@@ -129,14 +141,14 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: esp32s3-spiffs
+          name: esp32s3-firmware
       
       - name: Deploy to development environment
         run: |
           echo "Deploying firmware to development server..."
           # Example: Upload to an FTP server or S3 bucket for development testing
           # This is a placeholder - implement the actual deployment method you need
-          # aws s3 cp esp32s3-spiffs.zip s3://your-dev-bucket/esp32s3/latest/
+          # aws s3 cp esp32s3-firmware.zip s3://your-dev-bucket/esp32s3/latest/
           echo "Deployed to development environment successfully"
 
   deploy-staging:
@@ -147,14 +159,14 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: esp32s3-spiffs
+          name: esp32s3-firmware
       
       - name: Deploy to staging environment
         run: |
           echo "Deploying firmware to staging server..."
           # Example: Upload to staging environment
           # This is a placeholder - implement the actual deployment method you need
-          # aws s3 cp esp32s3-spiffs.zip s3://your-staging-bucket/esp32s3/latest/
+          # aws s3 cp esp32s3-firmware.zip s3://your-staging-bucket/esp32s3/latest/
           echo "Deployed to staging environment successfully"
 
   deploy-production:
@@ -167,13 +179,13 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: esp32s3-spiffs
+          name: esp32s3-firmware
       
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          files: esp32s3-spiffs.zip
+          files: esp32s3-firmware.zip
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
@@ -184,5 +196,5 @@ jobs:
           echo "Deploying firmware to production server..."
           # Example: Upload to production environment
           # This is a placeholder - implement the actual deployment method you need
-          # aws s3 cp esp32s3-spiffs.zip s3://your-production-bucket/esp32s3/${{ github.ref_name }}/
+          # aws s3 cp esp32s3-firmware.zip s3://your-production-bucket/esp32s3/${{ github.ref_name }}/
           echo "Deployed to production environment successfully"

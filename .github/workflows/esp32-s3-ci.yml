@@ -109,7 +109,7 @@ jobs:
         zip -r esp32s3-spiffs.zip firmware-package/
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v4
       with:
         name: esp32s3-spiffs
         path: esp32s3-spiffs.zip

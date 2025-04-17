@@ -108,7 +108,8 @@ jobs:
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-        
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       
       - name: Deploy to production environment
         run: |

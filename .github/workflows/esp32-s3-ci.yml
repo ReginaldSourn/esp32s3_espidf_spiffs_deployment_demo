@@ -43,6 +43,7 @@ jobs:
           python3-pip \
           python3-venv \
           python3-setuptools \
+          python3-full \
           cmake \
           ninja-build \
           ccache \
@@ -72,8 +73,6 @@ jobs:
         chmod -R 777 $IDF_TOOLS_PATH
         
         # Create and activate a Python virtual environment to avoid system package issues
-        apt-get update
-        apt-get install -y python3-venv python3-full
         python3 -m venv /opt/esp/python_env
         source /opt/esp/python_env/bin/activate
         
@@ -88,17 +87,15 @@ jobs:
         python $IDF_PATH/tools/idf_tools.py install-python-env
         
         # Create a script that will set up the environment correctly
-        cat > /opt/esp/setup_env.sh << 'EOF'
-#!/bin/bash
-export IDF_PATH=/opt/esp/esp-idf
-export IDF_TOOLS_PATH=/opt/esp/tools
-export IDF_TARGET=esp32s3
-source /opt/esp/python_env/bin/activate
-export PATH=$IDF_TOOLS_PATH/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:$PATH
-export PATH=$IDF_TOOLS_PATH/tools/riscv32-esp-elf/esp-12.2.0_20230208/riscv32-esp-elf/bin:$PATH
-export PATH=$IDF_TOOLS_PATH/tools/esp32ulp-elf/2.35_20220830/esp32ulp-elf/bin:$PATH
-export PATH=$IDF_PATH/tools:$PATH
-EOF
+        echo '#!/bin/bash' > /opt/esp/setup_env.sh
+        echo 'export IDF_PATH=/opt/esp/esp-idf' >> /opt/esp/setup_env.sh
+        echo 'export IDF_TOOLS_PATH=/opt/esp/tools' >> /opt/esp/setup_env.sh
+        echo 'export IDF_TARGET=esp32s3' >> /opt/esp/setup_env.sh
+        echo 'source /opt/esp/python_env/bin/activate' >> /opt/esp/setup_env.sh
+        echo 'export PATH=$IDF_TOOLS_PATH/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:$PATH' >> /opt/esp/setup_env.sh
+        echo 'export PATH=$IDF_TOOLS_PATH/tools/riscv32-esp-elf/esp-12.2.0_20230208/riscv32-esp-elf/bin:$PATH' >> /opt/esp/setup_env.sh
+        echo 'export PATH=$IDF_TOOLS_PATH/tools/esp32ulp-elf/2.35_20220830/esp32ulp-elf/bin:$PATH' >> /opt/esp/setup_env.sh
+        echo 'export PATH=$IDF_PATH/tools:$PATH' >> /opt/esp/setup_env.sh
         
         # Make the setup script executable
         chmod +x /opt/esp/setup_env.sh
@@ -110,10 +107,7 @@ EOF
       run: |
         echo "IDF_PATH=/opt/esp/esp-idf" >> $GITHUB_ENV
         echo "IDF_TARGET=esp32s3" >> $GITHUB_ENV
-        echo "ESP_IDF_TOOLS_PATH=/opt/esp/tools" >> $GITHUB_ENV
         echo "IDF_TOOLS_PATH=/opt/esp/tools" >> $GITHUB_ENV
-        
-        # We don't need to manually add toolchain paths as they'll be handled by the export.sh script
 
     - name: Build project
       run: |
@@ -161,6 +155,7 @@ EOF
       run: |
         # Source our environment setup script
         source /opt/esp/setup_env.sh
+        
         mkdir -p firmware-package
         cp build/bootloader/bootloader.bin firmware-package/
         cp build/*.bin firmware-package/
@@ -228,41 +223,7 @@ EOF
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
-        with:name: ESP32-S3 CI/CD Pipeline
-
-# Add default permissions
-permissions:
-  contents: write  # Needed for creating releases
-
-on:
-  push:
-    branches: [ main, develop ]
-    tags:
-      - 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
-  pull_request:
-    branches: [ main, develop ]
-  workflow_dispatch:  # Allows manual triggering
-
-env:
-  FIRMWARE_VERSION: ${{ github.ref_name }}
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-    container:
-      image…   prerelease: false
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Deploy to production environment
-        run: |
-          echo "Deploying firmware to production server..."
-          # Example: Upload to production environment
-          # This is a placeholder - implement the actual deployment method you need
-          # aws s3 cp esp32s3-firmware.zip s3://your-production-bucket/esp32s3/${{ github.ref_name }}/
-          echo "Deployed to production environment successfully"
+        with:
           name: esp32s3-firmware
       
       - name: Create GitHub Release

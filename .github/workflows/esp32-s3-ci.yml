@@ -1,8 +1,4 @@
-name: ESP32-S3 CI/CD Pipeline
-
-# Add default permissions
-permissions:
-  contents: write  # Needed for creating releases
+name: ESP32-S3 CI/CD Pipeline with ESP-IDF Action
 
 on:
   push:
@@ -19,159 +15,24 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-    container:
-      image: ubuntu:24.04
-      options: --privileged
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        apt-get update
-        DEBIAN_FRONTEND=noninteractive apt-get install -y \
-          git \
-          wget \
-          flex \
-          bison \
-          gperf \
-          python3 \
-          python3-pip \
-          python3-venv \
-          python3-setuptools \
-          python3-full \
-          cmake \
-          ninja-build \
-          ccache \
-          libffi-dev \
-          libssl-dev \
-          dfu-util \
-          libusb-1.0-0 \
-          usbutils \
-          curl \
-          jq
-
-    - name: Set up ESP-IDF
-      run: |
-        mkdir -p /opt/esp
-        cd /opt/esp
-        
-        # Clone ESP-IDF
-        git clone --recursive https://github.com/espressif/esp-idf.git -b v5.3.1
-        cd esp-idf
-        
-        # Check if requirements.txt exists and show its path
-        echo "Checking for requirements.txt:"
-        find . -name "requirements.txt" -type f -not -path "*/openthread/*"
-        
-        # Set up environment variables
-        export IDF_PATH=/opt/esp/esp-idf
-        export IDF_TOOLS_PATH=/opt/esp/tools
-        
-        # Create tools directory with correct permissions
-        mkdir -p $IDF_TOOLS_PATH
-        chmod -R 777 $IDF_TOOLS_PATH
-        chmod -R 777 $IDF_PATH
-        
-        # Install only the core requirements
-        if [ -f "$IDF_PATH/requirements.txt" ]; then
-          pip3 install --break-system-packages -r $IDF_PATH/requirements.txt
-        else
-          # Install core Python packages directly
-          pip3 install --break-system-packages setuptools wheel cryptography pyparsing pyserial click future contextlib2 idf-component-manager
-        fi
-        
-        # Skip OpenThread packages which are causing issues
-        # Use idf_tools.py directly to install the ESP32-S3 toolchain only
-        python3 $IDF_PATH/tools/idf_tools.py install --targets=esp32s3 --no-constraints
-        
-        # Create a script that will set up the environment correctly
-        echo '#!/bin/bash' > /opt/esp/setup_env.sh
-        echo 'export IDF_PATH=/opt/esp/esp-idf' >> /opt/esp/setup_env.sh
-        echo 'export IDF_TOOLS_PATH=/opt/esp/tools' >> /opt/esp/setup_env.sh
-        echo 'export IDF_TARGET=esp32s3' >> /opt/esp/setup_env.sh
-        echo 'export PATH=$IDF_TOOLS_PATH/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:$PATH' >> /opt/esp/setup_env.sh
-        echo 'export PATH=$IDF_TOOLS_PATH/tools/esp32ulp-elf/2.35_20220830/esp32ulp-elf/bin:$PATH' >> /opt/esp/setup_env.sh
-        echo 'export PATH=$IDF_PATH/tools:$PATH' >> /opt/esp/setup_env.sh
-        
-        # Make the setup script executable
-        chmod +x /opt/esp/setup_env.sh
-        
-        # Create a script that will set up the environment correctly
-        echo '#!/bin/bash' > /opt/esp/setup_env.sh
-        echo 'export IDF_PATH=/opt/esp/esp-idf' >> /opt/esp/setup_env.sh
-        echo 'export IDF_TOOLS_PATH=/opt/esp/tools' >> /opt/esp/setup_env.sh
-        echo 'export IDF_TARGET=esp32s3' >> /opt/esp/setup_env.sh
-        echo 'source /opt/esp/python_env/bin/activate' >> /opt/esp/setup_env.sh
-        echo 'export PATH=$IDF_TOOLS_PATH/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:$PATH' >> /opt/esp/setup_env.sh
-        echo 'export PATH=$IDF_TOOLS_PATH/tools/riscv32-esp-elf/esp-12.2.0_20230208/riscv32-esp-elf/bin:$PATH' >> /opt/esp/setup_env.sh
-        echo 'export PATH=$IDF_TOOLS_PATH/tools/esp32ulp-elf/2.35_20220830/esp32ulp-elf/bin:$PATH' >> /opt/esp/setup_env.sh
-        echo 'export PATH=$IDF_PATH/tools:$PATH' >> /opt/esp/setup_env.sh
-        
-        # Make the setup script executable
-        chmod +x /opt/esp/setup_env.sh
-        
-        # Verify installation
-        ls -la $IDF_TOOLS_PATH
-
-    - name: Set environment variables
-      run: |
-        echo "IDF_PATH=/opt/esp/esp-idf" >> $GITHUB_ENV
-        echo "IDF_TARGET=esp32s3" >> $GITHUB_ENV
-        echo "IDF_TOOLS_PATH=/opt/esp/tools" >> $GITHUB_ENV
-
+      
+    - name: Setup ESP-IDF
+      uses: espressif/esp-idf-ci-action@v1
+      with:
+        esp_idf_version: v5.3.1
+        target: esp32s3
+        path: ''  # Path to project directory, empty means root directory
+      
     - name: Build project
-      run: |
-        # Source our environment setup script
-        source /opt/esp/setup_env.sh
-        
-        # Print environment for debugging
-        echo "PATH = $PATH"
-        echo "IDF_PATH = $IDF_PATH"
-        echo "IDF_TOOLS_PATH = $IDF_TOOLS_PATH"
-        
-        cd $GITHUB_WORKSPACE
-        
-        # Set the target explicitly
-        echo "Setting target to ESP32-S3"
-        # Use python3 directly with idf.py script
-        python3 $IDF_PATH/tools/idf.py set-target esp32s3
-        
-        # Build the project
-        echo "Building the project"
-        python3 $IDF_PATH/tools/idf.py build
-
-    - name: Run static code analysis
-      run: |
-        # Source our environment setup script
-        source /opt/esp/setup_env.sh
-        
-        # Example using cppcheck (you would need to install it first)
-        # apt-get update && apt-get install -y cppcheck
-        # cppcheck --enable=all --suppress=missingIncludeSystem main/
-
-    - name: Run unit tests
-      run: |
-        # Source our environment setup script
-        source /opt/esp/setup_env.sh
-        
-        # Run tests if your project has them
-        # python3 $IDF_PATH/tools/idf.py test
-        
-        # Or use specific test commands if needed
-        # For example:
-        # python -m pytest test/
-
+      run: idf.py build
+      
     - name: Create firmware package
       if: success()
       run: |
-        # Source our environment setup script
-        source /opt/esp/setup_env.sh
-        
         mkdir -p firmware-package
         cp build/bootloader/bootloader.bin firmware-package/
         cp build/*.bin firmware-package/
@@ -184,14 +45,14 @@ jobs:
         echo "Commit: ${{ github.sha }}" >> firmware-package/version.txt
         
         # Create a zip archive
-        apt-get update && apt-get install -y zip
-        zip -r esp32s3-firmware.zip firmware-package/
+        sudo apt-get update && sudo apt-get install -y zip
+        zip -r esp32s3-spiffs.zip firmware-package/
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: esp32s3-firmware
-        path: esp32s3-firmware.zip
+        name: esp32s3-spiffs
+        path: esp32s3-spiffs.zip
         if-no-files-found: error
 
   deploy-development:
@@ -202,14 +63,14 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: esp32s3-firmware
+          name: esp32s3-spiffs
       
       - name: Deploy to development environment
         run: |
           echo "Deploying firmware to development server..."
           # Example: Upload to an FTP server or S3 bucket for development testing
           # This is a placeholder - implement the actual deployment method you need
-          # aws s3 cp esp32s3-firmware.zip s3://your-dev-bucket/esp32s3/latest/
+          # aws s3 cp esp32s3-spiffs.zip s3://your-dev-bucket/esp32s3/latest/
           echo "Deployed to development environment successfully"
 
   deploy-staging:
@@ -220,42 +81,41 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: esp32s3-firmware
+          name: esp32s3-spiffs
       
       - name: Deploy to staging environment
         run: |
           echo "Deploying firmware to staging server..."
           # Example: Upload to staging environment
           # This is a placeholder - implement the actual deployment method you need
-          # aws s3 cp esp32s3-firmware.zip s3://your-staging-bucket/esp32s3/latest/
+          # aws s3 cp esp32s3-spiffs.zip s3://your-staging-bucket/esp32s3/latest/
           echo "Deployed to staging environment successfully"
 
   deploy-production:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # This gives permission to create releases
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: esp32s3-firmware
+          name: esp32s3-spiffs
       
       - name: Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: phuonghuynh/action-ghrelease@v1.1.0
         with:
-          files: esp32s3-firmware.zip
+          files: esp32s3-spiffs.zip
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Deploy to production environment
         run: |
           echo "Deploying firmware to production server..."
           # Example: Upload to production environment
           # This is a placeholder - implement the actual deployment method you need
-          # aws s3 cp esp32s3-firmware.zip s3://your-production-bucket/esp32s3/${{ github.ref_name }}/
+          # aws s3 cp esp32s3-spiffs.zip s3://your-production-bucket/esp32s3/${{ github.ref_name }}/
           echo "Deployed to production environment successfully"

@@ -68,7 +68,8 @@ jobs:
         source /opt/esp/esp-idf/export.sh
         # Navigate to the project directory if needed
         # cd your_project_directory
-        
+        cd $GITHUB_WORKSPACE
+
         # Build the project
         idf.py build
 

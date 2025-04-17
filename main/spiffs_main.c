@@ -13,7 +13,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
-
+#include "dirent.h"
 static const char *TAG = "example";
 
 void app_main(void)
@@ -73,7 +73,8 @@ void app_main(void)
             ESP_LOGE(TAG, "SPIFFS_check() failed (%s)", esp_err_to_name(ret));
             return;
         } else {
-            ESP_LOGI(TAG, "SPIFFS_check() successful");
+
+            ESP_LOGI(TAG, "SPIFFS_check() successful %s", esp_err_to_name(ret));
         }
     }
 
@@ -85,6 +86,9 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to open file for writing");
         return;
     }
+    // Write to the file
+    // List files in the SPIFFS directory
+    
     fprintf(f, "Hello World!\n");
     fclose(f);
     ESP_LOGI(TAG, "File written");
@@ -92,9 +96,36 @@ void app_main(void)
     // Check if destination file exists before renaming
     struct stat st;
     if (stat("/spiffs/foo.txt", &st) == 0) {
+
+        ESP_LOGI(TAG, "File already exists, deleting it");
         // Delete it if it exists
         unlink("/spiffs/foo.txt");
     }
+
+
+    // List files in the SPIFFS directory 
+    ESP_LOGI(TAG, "Listing files in /spiffs:");
+    DIR *dir = opendir("/spiffs");
+    if (dir == NULL) {
+        ESP_LOGE(TAG, "Failed to open directory");
+        return;
+    }
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        struct stat st;
+        char filepath[300];
+        ESP_LOGI(TAG, "  %s", entry->d_name);
+        sprintf(filepath, "/spiffs/%s", entry->d_name);
+        if (stat(filepath, &st) == 0) {
+            ESP_LOGI(TAG, "  %s, size: %ld bytes", entry->d_name, st.st_size);
+        }
+        else {
+            ESP_LOGE(TAG, "Failed to get file info for %s", filepath);
+        }
+
+    }
+    
+    closedir(dir);
 
     // Rename original file
     ESP_LOGI(TAG, "Renaming file");

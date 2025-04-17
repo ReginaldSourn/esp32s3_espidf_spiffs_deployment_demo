@@ -58,10 +58,12 @@ jobs:
       run: |
         mkdir -p /opt/esp
         cd /opt/esp
+        
+        # Clone ESP-IDF
         git clone --recursive https://github.com/espressif/esp-idf.git -b v5.3.1
         cd esp-idf
         
-        # Set up IDF_PATH environment variable for use in this step
+        # Set up environment variables
         export IDF_PATH=/opt/esp/esp-idf
         export IDF_TOOLS_PATH=/opt/esp/tools
         
@@ -69,14 +71,37 @@ jobs:
         mkdir -p $IDF_TOOLS_PATH
         chmod -R 777 $IDF_TOOLS_PATH
         
-        # Install required Python packages first
-        pip3 install -r $IDF_PATH/requirements.txt
+        # Create and activate a Python virtual environment to avoid system package issues
+        apt-get update
+        apt-get install -y python3-venv python3-full
+        python3 -m venv /opt/esp/python_env
+        source /opt/esp/python_env/bin/activate
+        
+        # Install required Python packages within the virtual environment
+        pip install --upgrade pip
+        pip install -r $IDF_PATH/requirements.txt
         
         # Run the tools installation directly with idf_tools.py
-        python3 $IDF_PATH/tools/idf_tools.py install
+        python $IDF_PATH/tools/idf_tools.py install
         
         # Make sure all tool links are set up
-        python3 $IDF_PATH/tools/idf_tools.py install-python-env
+        python $IDF_PATH/tools/idf_tools.py install-python-env
+        
+        # Create a script that will set up the environment correctly
+        cat > /opt/esp/setup_env.sh << 'EOF'
+#!/bin/bash
+export IDF_PATH=/opt/esp/esp-idf
+export IDF_TOOLS_PATH=/opt/esp/tools
+export IDF_TARGET=esp32s3
+source /opt/esp/python_env/bin/activate
+export PATH=$IDF_TOOLS_PATH/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:$PATH
+export PATH=$IDF_TOOLS_PATH/tools/riscv32-esp-elf/esp-12.2.0_20230208/riscv32-esp-elf/bin:$PATH
+export PATH=$IDF_TOOLS_PATH/tools/esp32ulp-elf/2.35_20220830/esp32ulp-elf/bin:$PATH
+export PATH=$IDF_PATH/tools:$PATH
+EOF
+        
+        # Make the setup script executable
+        chmod +x /opt/esp/setup_env.sh
         
         # Verify installation
         ls -la $IDF_TOOLS_PATH
@@ -92,38 +117,28 @@ jobs:
 
     - name: Build project
       run: |
-        # Manually set up the necessary environment variables
-        export IDF_PATH=/opt/esp/esp-idf
-        export IDF_TARGET=esp32s3
-        export IDF_TOOLS_PATH=/opt/esp/tools
-        
-        # Add the toolchain binaries to PATH
-        export PATH=$IDF_TOOLS_PATH/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:$PATH
-        export PATH=$IDF_TOOLS_PATH/tools/riscv32-esp-elf/esp-12.2.0_20230208/riscv32-esp-elf/bin:$PATH
-        export PATH=$IDF_TOOLS_PATH/tools/esp32ulp-elf/2.35_20220830/esp32ulp-elf/bin:$PATH
-        export PATH=$IDF_PATH/tools:$PATH
+        # Source our environment setup script
+        source /opt/esp/setup_env.sh
         
         # Print environment for debugging
         echo "PATH = $PATH"
         echo "IDF_PATH = $IDF_PATH"
         echo "IDF_TOOLS_PATH = $IDF_TOOLS_PATH"
+        echo "Python version:"
+        python --version
         
         cd $GITHUB_WORKSPACE
         
         # Set the target explicitly
-        python3 $IDF_PATH/tools/idf.py set-target esp32s3
+        python $IDF_PATH/tools/idf.py set-target esp32s3
         
         # Build the project
-        python3 $IDF_PATH/tools/idf.py build
+        python $IDF_PATH/tools/idf.py build
 
     - name: Run static code analysis
       run: |
-        # Set the environment manually instead of using export.sh
-        export IDF_PATH=/opt/esp/esp-idf
-        export IDF_TARGET=esp32s3
-        export IDF_TOOLS_PATH=/opt/esp/tools
-        export PATH=$IDF_TOOLS_PATH/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:$PATH
-        export PATH=$IDF_PATH/tools:$PATH
+        # Source our environment setup script
+        source /opt/esp/setup_env.sh
         
         # Example using cppcheck (you would need to install it first)
         # apt-get update && apt-get install -y cppcheck
@@ -131,15 +146,11 @@ jobs:
 
     - name: Run unit tests
       run: |
-        # Set the environment manually instead of using export.sh
-        export IDF_PATH=/opt/esp/esp-idf
-        export IDF_TARGET=esp32s3
-        export IDF_TOOLS_PATH=/opt/esp/tools
-        export PATH=$IDF_TOOLS_PATH/tools/xtensa-esp32s3-elf/esp-12.2.0_20230208/xtensa-esp32s3-elf/bin:$PATH
-        export PATH=$IDF_PATH/tools:$PATH
+        # Source our environment setup script
+        source /opt/esp/setup_env.sh
         
         # Run tests if your project has them
-        # python3 $IDF_PATH/tools/idf.py test
+        # python $IDF_PATH/tools/idf.py test
         
         # Or use specific test commands if needed
         # For example:
@@ -148,10 +159,8 @@ jobs:
     - name: Create firmware package
       if: success()
       run: |
-        # Set the environment manually instead of using export.sh
-        export IDF_PATH=/opt/esp/esp-idf
-        export IDF_TARGET=esp32s3
-        export IDF_TOOLS_PATH=/opt/esp/tools
+        # Source our environment setup script
+        source /opt/esp/setup_env.sh
         mkdir -p firmware-package
         cp build/bootloader/bootloader.bin firmware-package/
         cp build/*.bin firmware-package/
@@ -219,7 +228,41 @@ jobs:
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
-        with:
+        with:name: ESP32-S3 CI/CD Pipeline
+
+# Add default permissions
+permissions:
+  contents: write  # Needed for creating releases
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # Allows manual triggering
+
+env:
+  FIRMWARE_VERSION: ${{ github.ref_name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    container:
+      image…   prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Deploy to production environment
+        run: |
+          echo "Deploying firmware to production server..."
+          # Example: Upload to production environment
+          # This is a placeholder - implement the actual deployment method you need
+          # aws s3 cp esp32s3-firmware.zip s3://your-production-bucket/esp32s3/${{ github.ref_name }}/
+          echo "Deployed to production environment successfully"
           name: esp32s3-firmware
       
       - name: Create GitHub Release

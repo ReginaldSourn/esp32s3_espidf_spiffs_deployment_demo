@@ -2,7 +2,7 @@ name: ESP32-S3 CI/CD Pipeline
 
 on:
   push:
-    branches: [ main,  develop ]
+    branches: [ main, develop ]
     tags:
       - 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
   pull_request:
@@ -15,6 +15,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: /bin/bash  # Explicitly use bash for all run commands
     container:
       image: ubuntu:24.04
       options: --privileged
@@ -65,24 +68,22 @@ jobs:
 
     - name: Build project
       run: |
-        source /opt/esp/esp-idf/export.sh
-        # Navigate to the project directory if needed
-        # cd your_project_directory
+        . /opt/esp/esp-idf/export.sh
         cd $GITHUB_WORKSPACE
-
+        
         # Build the project
         idf.py build
 
     - name: Run static code analysis
       run: |
-        source /opt/esp/esp-idf/export.sh
+        . /opt/esp/esp-idf/export.sh
         # Example using cppcheck (you would need to install it first)
         # apt-get update && apt-get install -y cppcheck
         # cppcheck --enable=all --suppress=missingIncludeSystem main/
 
     - name: Run unit tests
       run: |
-        source /opt/esp/esp-idf/export.sh
+        . /opt/esp/esp-idf/export.sh
         # Run tests if your project has them
         # idf.py -p PORT test
         
@@ -93,7 +94,7 @@ jobs:
     - name: Create firmware package
       if: success()
       run: |
-        source /opt/esp/esp-idf/export.sh
+        . /opt/esp/esp-idf/export.sh
         mkdir -p firmware-package
         cp build/bootloader/bootloader.bin firmware-package/
         cp build/*.bin firmware-package/

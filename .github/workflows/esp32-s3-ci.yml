@@ -64,6 +64,18 @@ jobs:
         git clone --recursive https://github.com/espressif/esp-idf.git -b v5.3.1
         cd esp-idf
         
+        # First, check what files are available (for debugging)
+        echo "Checking ESP-IDF directory structure:"
+        ls -la ./
+        if [ -f "./requirements.txt" ]; then
+          echo "requirements.txt found in root directory"
+        fi
+        
+        if [ -d "./tools/requirements" ]; then
+          echo "Found tools/requirements directory"
+          ls -la ./tools/requirements/
+        fi
+        
         # Set up environment variables
         export IDF_PATH=/opt/esp/esp-idf
         export IDF_TOOLS_PATH=/opt/esp/tools
@@ -78,13 +90,11 @@ jobs:
         
         # Install required Python packages within the virtual environment
         pip install --upgrade pip
-        pip install -r $IDF_PATH/requirements.txt
         
-        # Run the tools installation directly with idf_tools.py
-        python $IDF_PATH/tools/idf_tools.py install
-        
-        # Make sure all tool links are set up
-        python $IDF_PATH/tools/idf_tools.py install-python-env
+        # Let's use the proper ESP-IDF install script - it will handle all requirements
+        echo "Running ESP-IDF install.sh script"
+        chmod +x ./install.sh
+        ./install.sh esp32s3
         
         # Create a script that will set up the environment correctly
         echo '#!/bin/bash' > /opt/esp/setup_env.sh
@@ -111,8 +121,17 @@ jobs:
 
     - name: Build project
       run: |
-        # Source our environment setup script
-        source /opt/esp/setup_env.sh
+        # Source our environment setup script or manually set up the environment
+        export IDF_PATH=/opt/esp/esp-idf
+        export IDF_TARGET=esp32s3
+        export IDF_TOOLS_PATH=/opt/esp/tools
+        
+        # Activate the Python virtual environment
+        source /opt/esp/python_env/bin/activate
+        
+        # Source the ESP-IDF export script to set up path properly
+        echo "Sourcing ESP-IDF export script"
+        source $IDF_PATH/export.sh
         
         # Print environment for debugging
         echo "PATH = $PATH"
@@ -124,15 +143,21 @@ jobs:
         cd $GITHUB_WORKSPACE
         
         # Set the target explicitly
-        python $IDF_PATH/tools/idf.py set-target esp32s3
+        echo "Setting target to ESP32-S3"
+        idf.py set-target esp32s3
         
         # Build the project
-        python $IDF_PATH/tools/idf.py build
+        echo "Building the project"
+        idf.py build
 
     - name: Run static code analysis
       run: |
-        # Source our environment setup script
-        source /opt/esp/setup_env.sh
+        # Source ESP-IDF environment
+        export IDF_PATH=/opt/esp/esp-idf
+        export IDF_TARGET=esp32s3
+        export IDF_TOOLS_PATH=/opt/esp/tools
+        source /opt/esp/python_env/bin/activate
+        source $IDF_PATH/export.sh
         
         # Example using cppcheck (you would need to install it first)
         # apt-get update && apt-get install -y cppcheck
@@ -140,11 +165,15 @@ jobs:
 
     - name: Run unit tests
       run: |
-        # Source our environment setup script
-        source /opt/esp/setup_env.sh
+        # Source ESP-IDF environment
+        export IDF_PATH=/opt/esp/esp-idf
+        export IDF_TARGET=esp32s3
+        export IDF_TOOLS_PATH=/opt/esp/tools
+        source /opt/esp/python_env/bin/activate
+        source $IDF_PATH/export.sh
         
         # Run tests if your project has them
-        # python $IDF_PATH/tools/idf.py test
+        # idf.py test
         
         # Or use specific test commands if needed
         # For example:
@@ -153,8 +182,12 @@ jobs:
     - name: Create firmware package
       if: success()
       run: |
-        # Source our environment setup script
-        source /opt/esp/setup_env.sh
+        # Source ESP-IDF environment
+        export IDF_PATH=/opt/esp/esp-idf
+        export IDF_TARGET=esp32s3
+        export IDF_TOOLS_PATH=/opt/esp/tools
+        source /opt/esp/python_env/bin/activate
+        source $IDF_PATH/export.sh
         
         mkdir -p firmware-package
         cp build/bootloader/bootloader.bin firmware-package/
